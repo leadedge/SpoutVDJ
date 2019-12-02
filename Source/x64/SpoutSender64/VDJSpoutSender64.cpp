@@ -26,6 +26,8 @@
 //
 //		29.12.18 - Revise for DX11 for VirtualDJ 64 bit
 //		11.05.19 - Rebuild 64bit for 2.007 VS2017 /MT - Version 2.00
+//		02.12.19 - NULL variables on device close
+//		11.05.19 - Rebuild 64bit for 2.007 VS2017 /MT - Version 2.01
 //
 //		------------------------------------------------------------
 //
@@ -96,7 +98,7 @@ HRESULT __stdcall SpoutSenderPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 	infos->Author = "Lynn Jarvis";
     infos->PluginName = (char *)"VDJSpoutSender64";
     infos->Description = (char *)"Sends frames to a Spout Receiver\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.00";
+	infos->Version = (char *)"v2.01";
     infos->Bitmap = NULL;
 
 	// A sender is an effect - process last so all other effects are shown
@@ -125,12 +127,17 @@ HRESULT __stdcall  SpoutSenderPlugin::OnDeviceInit()
 
 HRESULT __stdcall SpoutSenderPlugin::OnDeviceClose() 
 {
-
 	if(m_pSharedTexture) 
 		m_pSharedTexture->Release();
 
 	if (bInitialized)
 		spoutsender.ReleaseSenderName(m_SenderName);
+
+	m_pSharedTexture = nullptr;
+	bInitialized = false;
+	m_Width = 0;
+	m_Height = 0;
+	m_SenderName[0] = 0;
 
 	return S_OK;
 }
@@ -173,7 +180,6 @@ HRESULT __stdcall SpoutSenderPlugin::OnDraw()
 						// Get the backbuffer resource
 						pRenderTargetView->GetResource(&backbufferRes);
 						if (backbufferRes) {
-							
 							// If a sender has not been initialized yet, create one
 							if (!bInitialized) {
 								// Save width and height to test for sender size changes
