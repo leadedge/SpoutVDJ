@@ -1,16 +1,17 @@
 #ifndef __spoutSenderPlugin__
 #define __spoutSenderPlugin__
 
-#include "stdafx.h"
+//#include "stdafx.h"
 #include "vdjVideo8.h"
 
 #include "d3d11.h"
 #pragma comment (lib, "d3d11.lib")
 
-#include "..\..\SpoutSDK\spoutSenderNames.h"
-#include "..\..\SpoutSDK\spoutDirectX.h"
-#include "..\..\SpoutSDK\spoutFrameCount.h"
-#include "..\..\SpoutSDK\spoutUtils.h"
+#include "../../SpoutSDK/SpoutSenderNames.h"
+#include "../../SpoutSDK/SpoutDirectX.h"
+#include "../../SpoutSDK/SpoutFrameCount.h"
+#include "../../SpoutSDK/SpoutFrameCount.h"
+#include "../../SpoutSDK/Spout.h"
 
 class SpoutSenderPlugin : public IVdjPluginVideoFx8
 {
@@ -20,16 +21,17 @@ public:
     SpoutSenderPlugin();
     ~SpoutSenderPlugin();
     
-    HRESULT __stdcall OnLoad();
-    HRESULT __stdcall OnGetPluginInfo(TVdjPluginInfo8 *infos);
-	HRESULT __stdcall OnStart();
-	HRESULT __stdcall OnStop();
-	HRESULT __stdcall OnDraw();
-	HRESULT __stdcall OnDeviceInit();
-	HRESULT __stdcall OnDeviceClose();
-	ULONG   __stdcall Release();
+    HRESULT VDJ_API OnLoad();
+    HRESULT VDJ_API OnGetPluginInfo(TVdjPluginInfo8 *infos);
+	HRESULT VDJ_API OnStart();
+	HRESULT VDJ_API OnStop();
+	HRESULT VDJ_API OnDraw();
+	HRESULT VDJ_API OnDeviceInit();
+	HRESULT VDJ_API OnDeviceClose();
+	ULONG   VDJ_API Release();
 
 private:
+	int deck; // the deck the plugin is working on
 
 	bool bInitialized;
 	bool bSpoutOut;
