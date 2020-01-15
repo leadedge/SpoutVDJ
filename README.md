@@ -6,4 +6,5 @@ VDJSpoutReceiver and VDJSpoutSender are 32 bit plugins developed using the Virtu
 See Releases for binaries.
 11.01.20
 - VDJSpoutSender64 updated with modifications by NicoTux to create a different sender name depending on the deck where the plugin was started from.
-- VDJSpoutReceiver64 2.00 released.
+15.01.20
+- VDJSpoutReceiver64 2.00 is in development and can be found in the beta branch.
