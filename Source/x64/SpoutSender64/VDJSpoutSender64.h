@@ -44,6 +44,8 @@ private:
 	spoutDirectX spoutdx;
 	spoutFrameCount frame;
 
+	void SpoutCleanup();
+
 };
 
 #endif

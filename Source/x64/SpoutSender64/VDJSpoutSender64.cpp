@@ -31,10 +31,13 @@
 //		10.01.19 - Modifications for updated VDJ SDK by by Nicotux 
 //				   See vdjVideo8.h - #define VDJFLAG_VIDEO_FORRECORDING 0x1000000
 //				   Rebuild 64bit for 2.007 VS2017 /MT - Version 2.02
+//		22.04.20 - Use shader resource view as source
+//				   Add SpoutCleanup function
+//				   Rebuild 64bit for 2.007 VS2017 /MT - Version 2.03
 //
 //		------------------------------------------------------------
 //
-//		Copyright (C) 2015-2019. Lynn Jarvis, Leading Edge. Pty. Ltd.
+//		Copyright (C) 2015-2020. Lynn Jarvis, Leading Edge. Pty. Ltd.
 //
 //		This program is free software: you can redistribute it and/or modify
 //		it under the terms of the GNU Lesser General Public License as published by
@@ -80,9 +83,8 @@ SpoutSenderPlugin::SpoutSenderPlugin()
 	// Enable logging to show Spout warnings and errors
 	// Log file saved in AppData>Roaming>Spout
 	EnableSpoutLogFile("VDJSpoutSender64.log");
-	SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
+	// SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
 	// OpenSpoutConsole(); // For debugging
-
 
 }
 
@@ -105,12 +107,11 @@ HRESULT VDJ_API SpoutSenderPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 	infos->Author = "Lynn Jarvis";
     infos->PluginName = (char *)"VDJSpoutSender64";
     infos->Description = (char *)"Sends frames to a Spout Receiver\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.02";
+	infos->Version = (char *)"v2.03";
     infos->Bitmap = NULL;
 
 	// A sender is an effect - process last so all other effects are shown
 	// As it"s a global sender, process for recording and output resolution
-
 	infos->Flags = VDJFLAG_PROCESSLAST | VDJFLAG_VIDEO_FORRECORDING | VDJFLAG_VIDEO_OUTPUTRESOLUTION;
 
     return NO_ERROR;
@@ -126,7 +127,7 @@ HRESULT VDJ_API SpoutSenderPlugin::OnStart()
 HRESULT VDJ_API SpoutSenderPlugin::OnStop()
 {
 	bSpoutOut = false;
-	OnDeviceClose();
+	SpoutCleanup();
 	return NO_ERROR;
 }
 
@@ -137,18 +138,7 @@ HRESULT VDJ_API  SpoutSenderPlugin::OnDeviceInit()
 
 HRESULT VDJ_API SpoutSenderPlugin::OnDeviceClose()
 {
-	if(m_pSharedTexture) 
-		m_pSharedTexture->Release();
-
-	if (bInitialized)
-		spoutsender.ReleaseSenderName(m_SenderName);
-
-	m_pSharedTexture = nullptr;
-	bInitialized = false;
-	m_Width = 0;
-	m_Height = 0;
-	m_SenderName[0] = 0;
-
+	SpoutCleanup();
 	return S_OK;
 }
 
@@ -163,9 +153,6 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 {
 	ID3D11Device* pDevice = nullptr;
 	ID3D11DeviceContext* pImmediateContext = nullptr;
-	ID3D11RenderTargetView *pRenderTargetView = nullptr;
-	ID3D11Resource *backbufferRes = nullptr;
-	D3D11_RENDER_TARGET_VIEW_DESC vDesc;
 	DXGI_FORMAT dxformat = DXGI_FORMAT_B8G8R8A8_UNORM;
 	HANDLE dxShareHandle = NULL;
 
@@ -179,50 +166,54 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 			// Get immediate context
 			pDevice->GetImmediateContext(&pImmediateContext);
 			if (pImmediateContext) {
-				// Get render target view
-				pImmediateContext->OMGetRenderTargets(1, &pRenderTargetView, 0);
-				if (pRenderTargetView) {
-					// Get it's format for sender texture creation and copy
-					ZeroMemory(&vDesc, sizeof(vDesc));
-					pRenderTargetView->GetDesc(&vDesc);
-					dxformat = vDesc.Format;
-					if (dxformat > 0) { // possible problem here
-						// Get the backbuffer resource
-						pRenderTargetView->GetResource(&backbufferRes);
-						if (backbufferRes) {
+				// Get the VDJ shader resource view
+				ID3D11ShaderResourceView* pShaderRV = nullptr;
+				hr = GetTexture(VdjVideoEngineDirectX11, (void **)&pShaderRV, nullptr);
+				if (hr == S_OK && pShaderRV) {
+					// Get the texture resource of the shader resource view
+					ID3D11Resource* texResource = nullptr;
+					pShaderRV->GetResource(&texResource);
+					// Get the texture for size and format
+					ID3D11Texture2D* pTexture = nullptr;
+					hr = texResource->QueryInterface(&pTexture);
+					if (hr == S_OK && pTexture) {
+						D3D11_TEXTURE2D_DESC desc;
+						ZeroMemory(&desc, sizeof(desc));
+						pTexture->GetDesc(&desc);
+						// Get it's format for texture creation and copy
+						DXGI_FORMAT dxformat = desc.Format;
+						if (dxformat > 0) {
 							// If a sender has not been initialized yet, create one
 							if (!bInitialized) {
 								// Save width and height to test for sender size changes
-								m_Width = width;
-								m_Height = height;
-								// Create a local shared texture the same size and format as the backbuffer
+								m_Width = desc.Width;
+								m_Height = desc.Width;
+								// Create a local shared texture the same size and format as the texture
 								spoutdx.CreateSharedDX11Texture(pDevice, m_Width, m_Height, dxformat, &m_pSharedTexture, dxShareHandle);
-								// Create a sender, specifying the backbuffer format and returned share handle
-//								strcpy_s(m_SenderName, 256, "VDJSpoutSender64");
+								// printf("Created shared texture %dx%d, sharehandle = 0x%x\n", m_Width, m_Height, dxShareHandle);
+								// Create a sender, specifying the texture format and share handle
 								sprintf_s(m_SenderName, 256, "VDJSpoutSender64 Deck %s", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
-
 								bInitialized = spoutsender.CreateSender(m_SenderName, m_Width, m_Height, dxShareHandle, (DWORD)dxformat);
 								// Create a sender mutex for access to the shared texture
 								frame.CreateAccessMutex(m_SenderName);
 								// Enable frame counting so the receiver gets frame number and fps
 								frame.EnableFrameCount(m_SenderName);
 							}
-							else if (m_Width != width || m_Height != height) {
+							else if (m_Width != desc.Width || m_Height != desc.Height) {
 								// Source texture changed size
-								m_Width = width;
-								m_Height = height;
+								m_Width = desc.Width;
+								m_Height = desc.Height;
 								// Release and re-create the local shared texture to match
-								if(m_pSharedTexture) m_pSharedTexture->Release();
+								if (m_pSharedTexture) m_pSharedTexture->Release();
 								spoutdx.CreateSharedDX11Texture(pDevice, m_Width, m_Height, dxformat, &m_pSharedTexture, dxShareHandle);
-								// Update the sender
+								// Update the sender with the new share handle
 								spoutsender.UpdateSender(m_SenderName, m_Width, m_Height, dxShareHandle, dxformat);
 							}
-
-							if (bInitialized) {
+							else {
 								// Access and lock the sender shared texture
 								if (frame.CheckAccess()) {
-									// Copy the backbuffer to the sender's shared texture
-									pImmediateContext->CopyResource(m_pSharedTexture, backbufferRes);
+									// Copy the Virtual DJ texture to the sender's shared texture
+									pImmediateContext->CopyResource(m_pSharedTexture, pTexture);
 									// Flush and wait until CopyResource is done
 									spoutdx.FlushWait(pDevice, pImmediateContext);
 									// While the mutex is still locked, signal a new frame
@@ -231,14 +222,26 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 									frame.AllowAccess();
 								}
 							}
-
 						}
 					}
 				}
 			}
 		}
 	}
-
 	return S_OK;
+}
 
+void SpoutSenderPlugin::SpoutCleanup()
+{
+	if (m_pSharedTexture)
+		m_pSharedTexture->Release();
+
+	if (bInitialized)
+		spoutsender.ReleaseSenderName(m_SenderName);
+
+	m_pSharedTexture = nullptr;
+	bInitialized = false;
+	m_Width = 0;
+	m_Height = 0;
+	m_SenderName[0] = 0;
 }
