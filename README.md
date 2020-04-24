@@ -12,3 +12,8 @@ VDJSpoutReceiver64 v2.00 beta released. It is in development and more informatio
 VDJSpoutSender64 texture from shader resource view instead of backbuffer.  
 Note : Sender resolution on the main deck follows : Settings > All settings > Record > recordVideoResolution
 
+Your support will help the project continue and develop.
+
+[![](https://www.paypalobjects.com/en_AU/i/btn/btn_donate_SM.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=P4P4QJZBT87PJ)  
+
+
