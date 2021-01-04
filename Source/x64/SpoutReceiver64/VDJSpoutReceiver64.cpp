@@ -57,10 +57,15 @@
 //				   Fills the window OK if selected from Master but sometimes
 //				   the deck visualisation has to be selected first.
 //		11.01.19 - Rebuild 64bit for 2.007 VS2017 /MT - Version 2.00
+//		02.06.20 - Rebuild without console
+//		05.01.21 - Add VDJFLAG_VIDEO_OUTPUTRESOLUTION flag
+//				   Add flush on VDJ device after shared texture copy
+//				   Rebuild with latest 2.007 code from develop branch
+//				   64bit for 2.007 VS2017 /MT - Version 2.01
 //
 //		------------------------------------------------------------
 //
-//		Copyright (C) 2015-2019. Lynn Jarvis, Leading Edge. Pty. Ltd.
+//		Copyright (C) 2015-2021. Lynn Jarvis, Leading Edge. Pty. Ltd.
 //
 //		This program is free software: you can redistribute it and/or modify
 //		it under the terms of the GNU Lesser General Public License as published by
@@ -132,9 +137,9 @@ HRESULT __stdcall SpoutReceiverPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 
 	infos->PluginName = (char *)"VDJSpoutReceiver64";
 	infos->Description = (char *)"Receives frames from a Spout Sender\nas a visualisation plugin\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.00";
+	infos->Version = (char *)"v2.01";
     infos->Bitmap = NULL;
-	infos->Flags = VDJFLAG_VIDEO_VISUALISATION;
+	infos->Flags = VDJFLAG_VIDEO_OUTPUTRESOLUTION | VDJFLAG_VIDEO_OUTPUTRESOLUTION;
 
     return NO_ERROR;
 }
@@ -324,8 +329,12 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 						if (g_pTexture && g_pSharedTexture) {
 							ID3D11DeviceContext *pImmediateContext = nullptr;
 							pDevice->GetImmediateContext(&pImmediateContext);
-							if (pImmediateContext)
+							if (pImmediateContext) {
 								pImmediateContext->CopyResource(g_pTexture, g_pSharedTexture);
+								// The shared texture has been updated on this device
+								// so flush must be called on this device
+								pImmediateContext->Flush();
+							}
 						}
 					}
 				}
@@ -357,7 +366,7 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 }
 
 //
-// The following functions are adapted from equivalents in SpoutSDK.cpp
+// The following functions are adapted from Spout SDK equivalents
 //
 
 // Create a texture that is not shared
