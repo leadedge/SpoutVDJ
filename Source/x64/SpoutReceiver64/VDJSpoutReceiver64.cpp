@@ -62,6 +62,9 @@
 //				   Add flush on VDJ device after shared texture copy
 //				   Rebuild with latest 2.007 code from develop branch
 //				   64bit for 2.007 VS2017 /MT - Version 2.01
+//		06.01.21 - Add local shader to render texture to VDJ
+//				   Only fetch VDJ device/context on device creation
+//				   Create shader resource view with texture instead of every frame
 //
 //		------------------------------------------------------------
 //
@@ -83,6 +86,34 @@
 //
 #include "stdafx.h"
 #include "VDJSpoutReceiver64.h"
+#include "PixelShader.h"
+
+struct D3DXCOLOR
+{
+public:
+	D3DXCOLOR() = default;
+	D3DXCOLOR(FLOAT r, FLOAT g, FLOAT b, FLOAT a)
+	{
+		this->r = r;
+		this->g = g;
+		this->b = b;
+		this->a = a;
+	}
+
+	operator FLOAT* ()
+	{
+		return &r;
+	}
+
+	FLOAT r, g, b, a;
+};
+
+struct TLVERTEX
+{
+	FLOAT x, y, z;
+	D3DXCOLOR colour;
+	FLOAT u, v;
+};
 
 VDJ_EXPORT HRESULT __stdcall DllGetClassObject(const GUID &rclsid, const GUID &riid, void** ppObject)
 { 
@@ -103,10 +134,15 @@ SpoutReceiverPlugin::SpoutReceiverPlugin()
 	SetSpoutLogLevel(SPOUT_LOG_WARNING); // show only warnings and errors
 	// OpenSpoutConsole(); // For debugging
 
+	pDevice = nullptr;
+	pImmediateContext = nullptr;
 	g_pSharedTexture = nullptr;
+	pPixelShader = nullptr;
+	pVertexBuffer = nullptr;
 	g_dxShareHandle = NULL;
 	g_dwFormat = 0;
 	g_pTexture = nullptr;
+	pSRView = nullptr;
 	g_SenderName[0] = 0;
 	g_SenderWidth = 0;
 	g_SenderHeight = 0;
@@ -117,6 +153,11 @@ SpoutReceiverPlugin::SpoutReceiverPlugin()
 	bSpoutOut = false; // toggle for plugin start and stop
 	bIsClosing = false; // plugin is not closing
 	SelectButton = 0;
+
+	oldWidth = 0;
+	oldHeight = 0;
+	stride = sizeof(TLVERTEX);
+	offset = 0;
 
 }
 
@@ -157,10 +198,85 @@ HRESULT __stdcall SpoutReceiverPlugin::OnStop()
 	return NO_ERROR;
 }
 
+bool SpoutReceiverPlugin::UpdateVertices()
+{
+	D3D11_MAPPED_SUBRESOURCE ms;
+	HRESULT hr = pImmediateContext->Map(pVertexBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
+	if (hr != S_OK)
+		return false;
+
+	TLVERTEX* vertices = (TLVERTEX*)ms.pData;
+
+	const D3DXCOLOR color = D3DXCOLOR(1.f, 1.f, 1.f, 1.f);
+	vertices[0].colour = color;
+	vertices[0].x = (FLOAT)width;
+	vertices[0].y = 0;
+	vertices[0].z = 0.0f;
+
+	vertices[1].colour = color;
+	vertices[1].x = (FLOAT)width;
+	vertices[1].y = (FLOAT)height;
+	vertices[1].z = 0.0f;
+
+	vertices[2].colour = color;
+	vertices[2].x = 0;
+	vertices[2].y = (FLOAT)height;
+	vertices[2].z = 0.0f;
+
+	vertices[3].colour = color;
+	vertices[3].x = 1;
+	vertices[3].y = (FLOAT)height;
+	vertices[3].z = 0.0f;
+
+	vertices[4].colour = color;
+	vertices[4].x = 0;
+	vertices[4].y = 0;
+	vertices[4].z = 0.0f;
+
+	vertices[5].colour = color;
+	vertices[5].x = (FLOAT)width;
+	vertices[5].y = 0;
+	vertices[5].z = 0.0f;
+
+	vertices[0].u = 1.0f; vertices[0].v = 0.0f;
+	vertices[1].u = 1.0f; vertices[1].v = 1.0f;
+	vertices[2].u = 0.0f; vertices[2].v = 1.0f;
+	vertices[3].u = 0.0f; vertices[3].v = 1.0f;
+	vertices[4].u = 0.0f; vertices[4].v = 0.0f;
+	vertices[5].u = 1.0f; vertices[5].v = 0.0f;
+
+	pImmediateContext->Unmap(pVertexBuffer, NULL);
+
+	return true;
+}
+
 // When DirectX is initialized or closed, these functions will be called
 HRESULT __stdcall  SpoutReceiverPlugin::OnDeviceInit() 
 {
 	bIsClosing = false; // is not closing
+
+	HRESULT hr = GetDevice(VdjVideoEngineDirectX11, (void**)&pDevice);
+	if (hr != S_OK)
+		return E_FAIL;
+
+	pDevice->GetImmediateContext(&pImmediateContext);
+	if (!pImmediateContext)
+		return E_FAIL;
+
+	D3D11_BUFFER_DESC bd = { 0 };
+	bd.Usage = D3D11_USAGE_DYNAMIC;
+	bd.ByteWidth = sizeof(TLVERTEX) * 6;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	pDevice->CreateBuffer(&bd, NULL, &pVertexBuffer);
+
+	oldWidth = width;
+	oldHeight = height;
+
+	UpdateVertices();
+
+	pDevice->CreatePixelShader(PixelShaderCode, sizeof(PixelShaderCode) , nullptr, &pPixelShader);
+
 	return S_OK;
 }
 
@@ -171,15 +287,38 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDeviceClose()
 
 	bIsClosing = true; // It is closing to don't do anything in draw
 
+	if (pVertexBuffer)
+	{
+		pVertexBuffer->Release();
+		pVertexBuffer = nullptr;
+	}
+	if (pPixelShader)
+	{
+		pPixelShader->Release();
+		pPixelShader = nullptr;
+	}
+	if (pSRView)
+	{
+		pSRView->Release();
+		pSRView = nullptr;
+	}
+	if (g_pTexture)
+	{
+		g_pTexture->Release();
+		g_pTexture = nullptr;
+	}
+	if (pImmediateContext)
+	{
+		pImmediateContext->Release();
+		pImmediateContext = nullptr;
+	}
+	pDevice = nullptr;
+
 	return S_OK;
 }
 
 ULONG __stdcall SpoutReceiverPlugin::Release()
 {
-	if (g_pTexture)
-		g_pTexture->Release();
-
-	g_pTexture = nullptr;
 	g_pSharedTexture = nullptr;
 	g_dxShareHandle = NULL;
 	g_SenderName[0] = 0;
@@ -209,36 +348,20 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDraw()
 
 	if (bSpoutOut) {
 
-		if (ReceiveSpoutTexture()) {
+		if (ReceiveSpoutTexture() && bSpoutInitialized && g_pTexture && pImmediateContext && pSRView) {
 			// A local texture, g_pTexture, has been updated
-			if (bSpoutInitialized && g_pTexture) {
-				// Create a shader resource view of the received texture
-				ID3D11Device* pDevice = nullptr;
-				HRESULT hr = GetDevice(VdjVideoEngineDirectX11, (void **)&pDevice);
-				if (hr == S_OK) {
-					D3D11_SHADER_RESOURCE_VIEW_DESC desc;
-					ID3D11ShaderResourceView *pSRView = nullptr;
-					ZeroMemory(&desc, sizeof(desc));
-					desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // Matching format is important
-					desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-					desc.Texture2D.MostDetailedMip = 0;
-					desc.Texture2D.MipLevels = 1;
-					hr = pDevice->CreateShaderResourceView(g_pTexture, &desc, &pSRView);
-					if (hr == S_OK) {
-						ID3D11DeviceContext* pImmediateContext = nullptr;
-						pDevice->GetImmediateContext(&pImmediateContext);
-						if (pImmediateContext) {
-							// Unbind the existing shader resource view
-							ID3D11ShaderResourceView* nullSRV = nullptr;
-							pImmediateContext->PSSetShaderResources(0, 1, &nullSRV);
-							// Bind our texture shader resource view
-							pImmediateContext->PSSetShaderResources(0, 1, &pSRView);
-							// Draw the texture
-							pImmediateContext->Draw(6, 0);
-						}
-					}
-				}
-			}
+			if (oldWidth != width || oldHeight != height)
+				UpdateVertices();
+			// Activate local shader
+			pImmediateContext->PSSetShader(pPixelShader, nullptr, 0);
+			// Bind our texture shader resource view
+			pImmediateContext->PSSetShaderResources(0, 1, &pSRView);
+			// Draw the texture
+			stride = sizeof(TLVERTEX);
+			offset = 0;
+			pImmediateContext->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
+			pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			pImmediateContext->Draw(6, 0);
 		}
 	}
 	// return S_OK if you actually draw the texture on the device
@@ -248,8 +371,6 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDraw()
 
 bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 {
-	ID3D11Device* pDevice = nullptr;
-
 	// Set the initial width and height to globals
 	// width and height are returned from the sender
 	unsigned int senderwidth = g_SenderWidth;
@@ -285,15 +406,18 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 
 		// Check here for sender size changes to resize the local texture
 		if (g_SenderWidth != senderwidth || g_SenderHeight != senderheight) {
+
 			// Save the sender's width and height to use as necessary
 			g_SenderWidth = senderwidth;
 			g_SenderHeight = senderheight;
-			HRESULT hr = GetDevice(VdjVideoEngineDirectX11, (void **)&pDevice);
-			if (hr == S_OK) {
+			if (pDevice) {
+
 				// Existing texture must be released
 				if(g_pTexture) g_pTexture->Release();
 				g_pTexture = nullptr;
+
 				CreateDX11Texture(pDevice, g_SenderWidth, g_SenderHeight, DXGI_FORMAT_B8G8R8A8_UNORM, &g_pTexture);
+
 			}
 			else {
 				printf("GetDevice failed\n");
@@ -318,24 +442,17 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 		// If not, use g_pTexture from the previous frame
 		if (frame.CheckAccess()) {
 			// Check if the sender has produced a new frame
-			if (frame.GetNewFrame()) {
+			if (frame.GetNewFrame() && pDevice) {
 				// Get the VirtualDJ DX11 device
-				HRESULT hr = GetDevice(VdjVideoEngineDirectX11, (void **)&pDevice);
-				if (hr == S_OK && pDevice) {
-					// g_dxShareHandle was retrieved from the sender
-					// The shared texture pointer can be retrieved via the sharehandle
-					if (spoutdx.OpenDX11shareHandle(pDevice, &g_pSharedTexture, g_dxShareHandle)) {
-						// Now copy the shared texture to the local texture which will be the same size
-						if (g_pTexture && g_pSharedTexture) {
-							ID3D11DeviceContext *pImmediateContext = nullptr;
-							pDevice->GetImmediateContext(&pImmediateContext);
-							if (pImmediateContext) {
-								pImmediateContext->CopyResource(g_pTexture, g_pSharedTexture);
-								// The shared texture has been updated on this device
-								// so flush must be called on this device
-								pImmediateContext->Flush();
-							}
-						}
+				// g_dxShareHandle was retrieved from the sender
+				// The shared texture pointer can be retrieved via the sharehandle
+				if (spoutdx.OpenDX11shareHandle(pDevice, &g_pSharedTexture, g_dxShareHandle)) {
+					// Now copy the shared texture to the local texture which will be the same size
+					if (g_pTexture && g_pSharedTexture && pImmediateContext) {
+							pImmediateContext->CopyResource(g_pTexture, g_pSharedTexture);
+							// The shared texture has been updated on this device
+							// so flush must be called on this device
+							pImmediateContext->Flush();
 					}
 				}
 			}
@@ -426,6 +543,22 @@ bool SpoutReceiverPlugin::CreateDX11Texture(ID3D11Device* pd3dDevice,
 		return false;
 	}
 
+	D3D11_SHADER_RESOURCE_VIEW_DESC srdesc;
+	ZeroMemory(&srdesc, sizeof(srdesc));
+	srdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // Matching format is important
+	srdesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srdesc.Texture2D.MostDetailedMip = 0;
+	srdesc.Texture2D.MipLevels = 1;
+	if (pSRView)
+	{
+		pSRView->Release();
+		pSRView = nullptr;
+	}
+
+	res = pDevice->CreateShaderResourceView(pTexture, &srdesc, &pSRView);
+	if (res != S_OK)
+	{
+	}
 	// Return the DX11 texture pointer
 	*ppTexture = pTexture;
 
