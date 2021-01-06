@@ -88,6 +88,15 @@
 #include "VDJSpoutReceiver64.h"
 #include "PixelShader.h"
 
+template <class T> void SafeRelease(T** ppT)
+{
+	if (*ppT)
+	{
+		(*ppT)->Release();
+		*ppT = NULL;
+	}
+}
+
 struct D3DXCOLOR
 {
 public:
@@ -288,36 +297,13 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDeviceClose()
 
 	bIsClosing = true; // It is closing to don't do anything in draw
 
-	if (g_pSharedTexture)
-	{
-		g_pSharedTexture->Release();
-		g_pSharedTexture = nullptr;
-	}
-	if (pVertexBuffer)
-	{
-		pVertexBuffer->Release();
-		pVertexBuffer = nullptr;
-	}
-	if (pPixelShader)
-	{
-		pPixelShader->Release();
-		pPixelShader = nullptr;
-	}
-	if (pSRView)
-	{
-		pSRView->Release();
-		pSRView = nullptr;
-	}
-	if (g_pTexture)
-	{
-		g_pTexture->Release();
-		g_pTexture = nullptr;
-	}
-	if (pImmediateContext)
-	{
-		pImmediateContext->Release();
-		pImmediateContext = nullptr;
-	}
+	SafeRelease(&g_pSharedTexture);
+	SafeRelease(&pVertexBuffer);
+	SafeRelease(&pPixelShader);
+	SafeRelease(&pSRView);
+	SafeRelease(&g_pTexture);
+	SafeRelease(&pImmediateContext);
+
 	pDevice = nullptr;
 
 	return S_OK;
@@ -354,7 +340,6 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDraw()
 	if (bSpoutOut) {
 		if (oldWidth != width || oldHeight != height) {
 			UpdateVertices();
-			OutputDebugStringA("RESIZE\n");
 		}
 		if (ReceiveSpoutTexture() && bSpoutInitialized && g_pTexture && pImmediateContext && pSRView) {
 			// A local texture, g_pTexture, has been updated
@@ -394,11 +379,7 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 			frame.CloseAccessMutex();
 			frame.CleanupFrameCount();
 		}
-		if (g_pSharedTexture) // The shared texture is different
-		{
-			g_pSharedTexture->Release();
-			g_pSharedTexture = nullptr;
-		}
+		SafeRelease(&g_pSharedTexture); // The shared texture is different
 		g_dxShareHandle = NULL; // And the share handle
 		// The local texture is only resized if the sender size has changed
 		bSpoutInitialized = false;
@@ -420,8 +401,7 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 			g_SenderHeight = senderheight;
 			if (pDevice) {
 				// Existing texture must be released
-				if(g_pTexture) g_pTexture->Release();
-				g_pTexture = nullptr;
+				SafeRelease(&g_pTexture);
 
 				CreateDX11Texture(pDevice, g_SenderWidth, g_SenderHeight, DXGI_FORMAT_B8G8R8A8_UNORM, &g_pTexture);
 
@@ -466,8 +446,7 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 						// If we are recreating the texture into g_pSharedTexture every time, then we need 
 						// to release the one we created. Can't we just keep the one texture though and
 						// recreate if needed?
-						//g_pSharedTexture->Release();
-						//g_pSharedTexture = nullptr;
+						//SafeRelease(&g_pSharedTexture);
 						// The shared texture has been updated on this device
 						// so flush must be called on this device
 						pImmediateContext->Flush();
@@ -487,11 +466,7 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 			// Zero the name to get the active sender if it is running
 			g_SenderName[0] = 0;
 			// No need to reset the size or re-create the local texture
-			if (g_pSharedTexture) // The shared texture no longer exists
-			{
-				g_pSharedTexture->Release();
-				g_pSharedTexture = nullptr;
-			}
+			SafeRelease(&g_pSharedTexture); // The shared texture no longer exists
 			g_dxShareHandle = NULL; // Or the share handle
 			// Close the named access mutex and frame counting
 			frame.CloseAccessMutex();
@@ -571,11 +546,7 @@ bool SpoutReceiverPlugin::CreateDX11Texture(ID3D11Device* pd3dDevice,
 	srdesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	srdesc.Texture2D.MostDetailedMip = 0;
 	srdesc.Texture2D.MipLevels = 1;
-	if (pSRView)
-	{
-		pSRView->Release();
-		pSRView = nullptr;
-	}
+	SafeRelease(&pSRView);
 
 	res = pDevice->CreateShaderResourceView(pTexture, &srdesc, &pSRView);
 	if (res != S_OK)
