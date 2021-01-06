@@ -65,13 +65,24 @@ private:
 	unsigned int g_SenderWidth; // Width and height of the sender detected
 	unsigned int g_SenderHeight;
 
+	int oldWidth;
+	int oldHeight;
+	UINT stride;
+	UINT offset;
+
 	// DirectX
+	ID3D11Device* pDevice; // VirtualDJ D3D Device
+	ID3D11DeviceContext* pImmediateContext; // VirtualDJ D3D Device Context
+	ID3D11PixelShader* pPixelShader; // Local pixel shader
+	ID3D11Buffer* pVertexBuffer; // Texture vertex buffer
 	HANDLE g_dxShareHandle;	// Shared texture handle
 	ID3D11Texture2D* g_pSharedTexture; // Shared texture pointer
+	ID3D11Texture2D* g_pTexture; // Local texture pointer
+	ID3D11ShaderResourceView* pSRView; // Shared texture shader resource view
 	DWORD g_dwFormat; // Shared texture format
-	ID3D11Texture2D* g_pTexture; // Local texture
 	bool CreateDX11Texture(ID3D11Device* pd3dDevice, unsigned int width, unsigned int height,
 							DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
+	bool UpdateVertices();
 
 	// Utility
 	SHELLEXECUTEINFOA g_ShExecInfo;
