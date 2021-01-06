@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="VDJSpoutReceiver64.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="SpoutSDK\SpoutDirectX.cpp">
+      <Filter>SpoutSDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SpoutSDK\SpoutFrameCount.cpp">
+      <Filter>SpoutSDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SpoutSDK\SpoutSenderNames.cpp">
+      <Filter>SpoutSDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SpoutSDK\SpoutSharedMemory.cpp">
+      <Filter>SpoutSDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SpoutSDK\SpoutUtils.cpp">
+      <Filter>SpoutSDK</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="vdjPlugin8.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="vdjVideo8.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="VDJSpoutReceiver64.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutDirectX.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutFrameCount.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutSenderNames.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutSharedMemory.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutCommon.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutUtils.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="SpoutSDK">
+      <UniqueIdentifier>{8fed8cfa-6231-4eb4-b770-8ac3d3eb99f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{e391de12-cb22-4dfe-90a7-b512c63471bb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
