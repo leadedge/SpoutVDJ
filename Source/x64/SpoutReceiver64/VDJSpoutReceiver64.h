@@ -11,10 +11,10 @@
 //	d3d11.lib
 //  d3d9.lib
 
-#include "..\..\SpoutGL\SpoutSenderNames.h" // for sender creation and update
-#include "..\..\SpoutGL\SpoutDirectX.h" // for creating a shared texture
-#include "..\..\SpoutGL\SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "..\..\SpoutGL\SpoutUtils.h" // for logging utilites
+#include "SpoutSDK\SpoutSenderNames.h" // for sender creation and update
+#include "SpoutSDK\SpoutDirectX.h" // for creating a shared texture
+#include "SpoutSDK\SpoutFrameCount.h" // for mutex lock and new frame signal
+#include "SpoutSDK\SpoutUtils.h" // for logging utilites
 
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
@@ -61,9 +61,9 @@ private:
 	bool bSpoutOut; // Spout output on or off when plugin is started and stopped
 	bool bIsClosing; // Plugin is closing
 
-	char g_SenderName[256]; // The sender name
-	unsigned int g_SenderWidth; // Width and height of the sender detected
-	unsigned int g_SenderHeight;
+	char m_SenderName[256]; // The sender name
+	unsigned int m_SenderWidth; // Width and height of the sender detected
+	unsigned int m_SenderHeight;
 
 	int oldWidth;
 	int oldHeight;
@@ -71,21 +71,21 @@ private:
 	UINT offset;
 
 	// DirectX
-	ID3D11Device* pDevice; // VirtualDJ D3D Device
-	ID3D11DeviceContext* pImmediateContext; // VirtualDJ D3D Device Context
-	ID3D11PixelShader* pPixelShader; // Local pixel shader
-	ID3D11Buffer* pVertexBuffer; // Texture vertex buffer
-	HANDLE g_dxShareHandle;	// Shared texture handle
-	ID3D11Texture2D* g_pSharedTexture; // Shared texture pointer
-	ID3D11Texture2D* g_pTexture; // Local texture pointer
+	ID3D11Device* m_pVDJdevice; // VirtualDJ D3D Device
+	ID3D11DeviceContext* m_pImmediateContext; // VirtualDJ D3D Device Context
+	ID3D11PixelShader* m_pPixelShader; // Local pixel shader
+	ID3D11Buffer* m_pVertexBuffer; // Texture vertex buffer
+	HANDLE m_dxShareHandle;	// Shared texture handle
+	ID3D11Texture2D* m_pSharedTexture; // Shared texture pointer
+	ID3D11Texture2D* m_pTexture; // Local texture pointer
 	ID3D11ShaderResourceView* pSRView; // Shared texture shader resource view
-	DWORD g_dwFormat; // Shared texture format
+	DWORD m_dwFormat; // Shared texture format
 	bool CreateDX11Texture(ID3D11Device* pd3dDevice, unsigned int width, unsigned int height,
 							DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
 	bool UpdateVertices();
 
 	// Utility
-	SHELLEXECUTEINFOA g_ShExecInfo;
+	SHELLEXECUTEINFOA m_ShExecInfo;
 	bool ReceiveSpoutTexture();
 	bool CheckSpoutPanel(char *sendername, int maxchars = 256);
 	bool OpenSpoutPanel();
