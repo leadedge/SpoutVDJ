@@ -42,6 +42,9 @@
     <ClInclude Include="VDJSpoutReceiver64.h">
       <Filter>Source</Filter>
     </ClInclude>
+    <ClInclude Include="SpoutSDK\SpoutCommon.h">
+      <Filter>SpoutSDK</Filter>
+    </ClInclude>
     <ClInclude Include="SpoutSDK\SpoutDirectX.h">
       <Filter>SpoutSDK</Filter>
     </ClInclude>
@@ -52,9 +55,6 @@
       <Filter>SpoutSDK</Filter>
     </ClInclude>
     <ClInclude Include="SpoutSDK\SpoutSharedMemory.h">
-      <Filter>SpoutSDK</Filter>
-    </ClInclude>
-    <ClInclude Include="SpoutSDK\SpoutCommon.h">
       <Filter>SpoutSDK</Filter>
     </ClInclude>
     <ClInclude Include="SpoutSDK\SpoutUtils.h">
@@ -68,5 +68,10 @@
     <Filter Include="Source">
       <UniqueIdentifier>{e391de12-cb22-4dfe-90a7-b512c63471bb}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="PixelShader.hlsl">
+      <Filter>Source</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
