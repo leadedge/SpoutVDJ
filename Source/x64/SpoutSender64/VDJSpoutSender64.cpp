@@ -34,10 +34,14 @@
 //		22.04.20 - Use shader resource view as source
 //				   Add SpoutCleanup function
 //				   Rebuild 64bit for 2.007 VS2017 /MT - Version 2.03
+//		22.04.20 - Code cleanup
+//		02.06.20 - Rebuild without console
+//		10.01.21 - Change sender name creation to match receiver code
+//				   Rebuild for GitHub update 2.007 VS2017 /MT - Version 2.04
 //
 //		------------------------------------------------------------
 //
-//		Copyright (C) 2015-2020. Lynn Jarvis, Leading Edge. Pty. Ltd.
+//		Copyright (C) 2015-2021. Lynn Jarvis, Leading Edge. Pty. Ltd.
 //
 //		This program is free software: you can redistribute it and/or modify
 //		it under the terms of the GNU Lesser General Public License as published by
@@ -54,7 +58,6 @@
 //		--------------------------------------------------------------
 //
 
-//#include "stdafx.h"
 #include "VDJSpoutSender64.h"
 #include <array>
 
@@ -73,6 +76,15 @@ VDJ_EXPORT HRESULT VDJ_API DllGetClassObject(const GUID &rclsid, const GUID &rii
 
 SpoutSenderPlugin::SpoutSenderPlugin()
 {
+	// Enable logging to show Spout warnings and errors
+	// Log file saved in AppData>Roaming>Spout
+	EnableSpoutLogFile("VDJSpoutSender64.log");
+	SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
+
+	// OpenSpoutConsole(); // For debugging
+	// printf("VDJSpoutSender64 - 2.04\n");
+
+
 	m_Width = 0;
 	m_Height = 0;
 	m_SenderName[0] = 0;
@@ -80,12 +92,6 @@ SpoutSenderPlugin::SpoutSenderPlugin()
 	bInitialized = false;
 	bSpoutOut = false; // toggle for plugin start and stop
 	
-	// Enable logging to show Spout warnings and errors
-	// Log file saved in AppData>Roaming>Spout
-	EnableSpoutLogFile("VDJSpoutSender64.log");
-	// SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
-	// OpenSpoutConsole(); // For debugging
-
 }
 
 SpoutSenderPlugin::~SpoutSenderPlugin()
@@ -107,7 +113,7 @@ HRESULT VDJ_API SpoutSenderPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 	infos->Author = "Lynn Jarvis";
     infos->PluginName = (char *)"VDJSpoutSender64";
     infos->Description = (char *)"Sends frames to a Spout Receiver\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.03";
+	infos->Version = (char *)"v2.04";
     infos->Bitmap = NULL;
 
 	// A sender is an effect - process last so all other effects are shown
@@ -151,19 +157,16 @@ ULONG VDJ_API SpoutSenderPlugin::Release()
 
 HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 {
-	ID3D11Device* pDevice = nullptr;
-	ID3D11DeviceContext* pImmediateContext = nullptr;
-	DXGI_FORMAT dxformat = DXGI_FORMAT_B8G8R8A8_UNORM;
-	HANDLE dxShareHandle = NULL;
-
 	// Draw now so we have a backbuffer
 	DrawDeck();
 
 	if (bSpoutOut) {
 		// Get the VirtualDJ DX11 device
+		ID3D11Device* pDevice = nullptr;
 		HRESULT hr = GetDevice(VdjVideoEngineDirectX11, (void **)&pDevice);
 		if (hr == S_OK && pDevice) {
 			// Get immediate context
+			ID3D11DeviceContext* pImmediateContext = nullptr;
 			pDevice->GetImmediateContext(&pImmediateContext);
 			if (pImmediateContext) {
 				// Get the VDJ shader resource view
@@ -183,6 +186,7 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 						// Get it's format for texture creation and copy
 						DXGI_FORMAT dxformat = desc.Format;
 						if (dxformat > 0) {
+							HANDLE dxShareHandle = NULL;
 							// If a sender has not been initialized yet, create one
 							if (!bInitialized) {
 								// Save width and height to test for sender size changes
@@ -190,9 +194,16 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 								m_Height = desc.Width;
 								// Create a local shared texture the same size and format as the texture
 								spoutdx.CreateSharedDX11Texture(pDevice, m_Width, m_Height, dxformat, &m_pSharedTexture, dxShareHandle);
-								// printf("Created shared texture %dx%d, sharehandle = 0x%x\n", m_Width, m_Height, dxShareHandle);
+								
+								// sprintf_s(m_SenderName, 256, "VDJSpoutSender64 Deck %s", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
+
+								// Create a sender name depending on the deck it is loaded on
+								sprintf_s(m_SenderName, 256, "VDJSpoutSender64 %s%s", (deck == 0) ? "" : "Deck ", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
+								
+								// LJ DEBUG
+								printf("Sender [%s]\n", m_SenderName);
+
 								// Create a sender, specifying the texture format and share handle
-								sprintf_s(m_SenderName, 256, "VDJSpoutSender64 Deck %s", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
 								bInitialized = spoutsender.CreateSender(m_SenderName, m_Width, m_Height, dxShareHandle, (DWORD)dxformat);
 								// Create a sender mutex for access to the shared texture
 								frame.CreateAccessMutex(m_SenderName);
@@ -215,7 +226,9 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 									// Copy the Virtual DJ texture to the sender's shared texture
 									pImmediateContext->CopyResource(m_pSharedTexture, pTexture);
 									// Flush and wait until CopyResource is done
-									spoutdx.FlushWait(pDevice, pImmediateContext);
+									// spoutdx.FlushWait(pDevice, pImmediateContext);
+									// LJ DEBUG
+									pImmediateContext->Flush();
 									// While the mutex is still locked, signal a new frame
 									frame.SetNewFrame();
 									// Allow access to the shared texture

@@ -7,11 +7,9 @@
 #include "d3d11.h"
 #pragma comment (lib, "d3d11.lib")
 
-#include "../../SpoutSDK/SpoutSenderNames.h"
-#include "../../SpoutSDK/SpoutDirectX.h"
-#include "../../SpoutSDK/SpoutFrameCount.h"
-#include "../../SpoutSDK/SpoutFrameCount.h"
-#include "../../SpoutSDK/Spout.h"
+#include "../../SpoutGL/SpoutSenderNames.h"
+#include "../../SpoutGL/SpoutDirectX.h"
+#include "../../SpoutGL/SpoutFrameCount.h"
 
 class SpoutSenderPlugin : public IVdjPluginVideoFx8
 {
@@ -31,6 +29,7 @@ public:
 	ULONG   VDJ_API Release();
 
 private:
+
 	int deck; // the deck the plugin is working on
 
 	bool bInitialized;
