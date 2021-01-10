@@ -37,7 +37,7 @@
 //		22.04.20 - Code cleanup
 //		02.06.20 - Rebuild without console
 //		10.01.21 - Change sender name creation to match receiver code
-//				   Rebuild for GitHub update 2.007 VS2017 /MT - Version 2.04
+//				   Rebuild for GitHub update - Version 2.04
 //
 //		------------------------------------------------------------
 //
