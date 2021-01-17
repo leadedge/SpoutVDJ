@@ -111,7 +111,16 @@
 //				   Add changed share handle check for received sender
 //				   Change tested sender name based on deck of the sender plugin
 //				   Removed cleanup code from Release() because OnDeviceClose() is called first
-//				   Version 2.10. GitHub source and binaries updated.
+//				   Version 2.10. GitHub source and binaries updated. Release v2007.
+//		11.01.21 - Include position control and build as overlay
+//				   The plugin can be copied to both Visualisation and Video Effects
+//				   Copy to GitHub beta branch for further testing
+//				   TODO : documentation
+//				   Version 2.11
+//		12.01.21 - Change infos->PluginName to "SpoutReceiver"
+//				   Change build copy name to SpoutReceiver
+//		13.01.21 - Add " master" string check for sender names to avoid.
+//		17.01.21 - Build for release v2008 - Version 2.12
 //
 //		------------------------------------------------------------
 //
@@ -134,7 +143,6 @@
 #include "stdafx.h"
 #include "VDJSpoutReceiver64.h"
 #include "PixelShader.h"
-#include <array>
 
 template <class T> void SafeRelease(T** ppT)
 {
@@ -185,13 +193,8 @@ VDJ_EXPORT HRESULT __stdcall DllGetClassObject(const GUID &rclsid, const GUID &r
 
 SpoutReceiverPlugin::SpoutReceiverPlugin()
 {
-	// Enable logging to show Spout error logs
-	// Log file saved in AppData>Roaming>Spout
-	EnableSpoutLogFile("VDJSpoutReceiver64.log");
-	SetSpoutLogLevel(SPOUT_LOG_WARNING); // show only warnings and errors
-
 	// OpenSpoutConsole(); // For debugging
-	// printf("VDJSpoutReceiver64 - 2.10\n");
+	// printf("SpoutReceiver - 2.12\n");
 
 	m_pVDJdevice = nullptr;
 	m_pImmediateContext = nullptr;
@@ -215,6 +218,7 @@ SpoutReceiverPlugin::SpoutReceiverPlugin()
 	SelectButton = 0;
 
 	m_noReceiveName[0] = 0; // Sender plugin on the same deck to avoid
+	m_ReceiverName[0] = 0; // The name of this effect
 
 	oldWidth = 0;
 	oldHeight = 0;
@@ -230,8 +234,6 @@ SpoutReceiverPlugin::~SpoutReceiverPlugin()
 
 HRESULT __stdcall SpoutReceiverPlugin::OnLoad()
 {
-	// printf("OnLoad()\n");
-
 	// The deck the plugin was loaded
 	// is it a standard one ? the master one ? yes master, no, standard, else it is special one or fail
 	double query = nan(""); // NAN;
@@ -240,32 +242,47 @@ HRESULT __stdcall SpoutReceiverPlugin::OnLoad()
 	// Create a sender name not to connect to
 	// i.e. a sender plugin on the same deck
 	sprintf_s(m_noReceiveName, 256, "VDJSpoutSender64 %s%s", (deck == 0) ? "" : "Deck ", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
-	
+
 	// Sender selection button
 	DeclareParameterButton(&SelectButton, 1, "Sender", "Sender");
+
+	// Position control button
+	DeclareParameterPosition(m_position, 2, "Position", "pos");
+
+	// To prevent double selection problem for plugin activation
+	// Sender name appears in the control GUI
+	DeclareParameterString(m_SenderName, 3, "Sender", "Sender", SpoutMaxSenderNameLen);
+
+	// The dll name of this effect including where it is loaded
+	sprintf_s(m_ReceiverName, 256, "%s", (GetDLLName() + " " + deck_name(deck)).c_str());
+
+	// Enable logging to show Spout error logs
+	// Log file saved in AppData>Roaming>Spout
+	if (GetDLLDir().find("\\Visualisations") != std::string::npos)
+		strcat_s(m_ReceiverName, 256, " Visualisation");
+	else
+		strcat_s(m_ReceiverName, 256, " Effect");
+
+	EnableSpoutLogFile(m_ReceiverName);
+	SetSpoutLogLevel(SPOUT_LOG_WARNING); // show only warnings and errors
 
     return NO_ERROR;
 }
 
 HRESULT __stdcall SpoutReceiverPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 {
-	// printf("OnGetPluginInfo()\n");
-
 	infos->Author = "Lynn Jarvis";
-	infos->PluginName = (char *)"VDJSpoutReceiver64";
-	infos->Flags = VDJFLAG_VIDEO_VISUALISATION | VDJFLAG_VIDEO_OUTPUTRESOLUTION;
-	infos->Description = (char *)"Receives frames from a Spout Sender\nas a visualisation plugin\nSpout : https://Spout.zeal.co/";
-	infos->Version = (char *)"v2.10";
+	infos->PluginName = (char *)"SpoutReceiver";
+	infos->Flags = VDJFLAG_VIDEO_OVERLAY | VDJFLAG_VIDEO_OUTPUTRESOLUTION;
+	infos->Description = (char *)"Receives frames from a Spout Sender\nSpout : https://Spout.zeal.co/";
+	infos->Version = (char *)"v2.12";
     infos->Bitmap = NULL;
-
     return NO_ERROR;
 }
 
 
 HRESULT __stdcall SpoutReceiverPlugin::OnStart()
 {
-	// printf("OnStart()\n");
-
 	// Initialize again in case OnDeviceClose was called
 	// Noted for toggle of main window
 	if (!m_pImmediateContext) {
@@ -284,8 +301,6 @@ HRESULT __stdcall SpoutReceiverPlugin::OnStart()
 
 HRESULT __stdcall SpoutReceiverPlugin::OnStop()
 {
-	// printf("OnStop()\n");
-
 	bSpoutOut = false;
 	return NO_ERROR;
 }
@@ -293,18 +308,13 @@ HRESULT __stdcall SpoutReceiverPlugin::OnStop()
 // When DirectX is initialized or closed, these functions will be called
 HRESULT __stdcall  SpoutReceiverPlugin::OnDeviceInit() 
 {
-	// printf("OnDeviceInit()\n");
-
 	bIsClosing = false; // is not closing
 	// Set everything up for draw
 	return InitializeDraw();
-
 }
 
 HRESULT __stdcall SpoutReceiverPlugin::OnDeviceClose() 
 {
-	// printf("OnDeviceClose()\n");
-
 	bIsClosing = true; // It is closing to don't do anything in draw
 
 	// Release everything
@@ -339,7 +349,7 @@ ULONG __stdcall SpoutReceiverPlugin::Release()
 HRESULT __stdcall SpoutReceiverPlugin::OnParameter(int ParamID) 
 {
 	// Activate SpoutPanel to select a sender
-	if (ParamID == 1 && SelectButton == 0)
+	if (ParamID == 1)
 		OpenSpoutPanel();
 
 	return S_OK;
@@ -354,8 +364,7 @@ HRESULT __stdcall SpoutReceiverPlugin::OnDraw()
 
 	if (bSpoutOut) {
 
-		if (oldWidth != width || oldHeight != height)
-			UpdateVertices();
+		UpdateVertices();
 
 		if (ReceiveSpoutTexture() && bSpoutInitialized && m_pTexture && m_pImmediateContext && pSRView) {
 			// A local texture, m_pTexture, has been updated
@@ -413,52 +422,60 @@ HRESULT SpoutReceiverPlugin::InitializeDraw()
 
 bool SpoutReceiverPlugin::UpdateVertices()
 {
+
 	D3D11_MAPPED_SUBRESOURCE ms;
 	HRESULT hr = m_pImmediateContext->Map(m_pVertexBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
-	if (hr != S_OK) {
-		SpoutLogWarning("SpoutReceiverPlugin::UpdateVertices() - could not map vertex buffer");
+	if (hr != S_OK)
 		return false;
-	}
+
+#define x0 m_position[0]
+#define y0 m_position[1]
+#define x1 m_position[2]
+#define y1 m_position[3]
+#define	pos_x ((x0)*width)
+#define pos_y ((y0)*height)
+
+#define	pos_width (((x1)-(x0))*width)
+#define pos_height (((y1)-(y0))*height)
 
 	TLVERTEX* vertices = (TLVERTEX*)ms.pData;
-
 	const D3DXCOLOR color = D3DXCOLOR(1.f, 1.f, 1.f, 1.f);
 	vertices[0].colour = color;
-	vertices[0].x = (FLOAT)width;
-	vertices[0].y = 0;
+	vertices[0].x = (FLOAT)pos_width + pos_x * 2;
+	vertices[0].y = pos_y;// 0;
 	vertices[0].z = 0.0f;
 
 	vertices[1].colour = color;
-	vertices[1].x = (FLOAT)width;
-	vertices[1].y = (FLOAT)height;
+	vertices[1].x = (FLOAT)pos_width + pos_x * 2;
+	vertices[1].y = (FLOAT)pos_height + pos_y * 2;
 	vertices[1].z = 0.0f;
 
 	vertices[2].colour = color;
-	vertices[2].x = 0;
-	vertices[2].y = (FLOAT)height;
+	vertices[2].x = pos_x;// 0;
+	vertices[2].y = (FLOAT)pos_height + pos_y * 2;
 	vertices[2].z = 0.0f;
 
 	vertices[3].colour = color;
-	vertices[3].x = 1;
-	vertices[3].y = (FLOAT)height;
+	vertices[3].x = 1 + pos_x;// 1;
+	vertices[3].y = (FLOAT)pos_height + pos_y * 2;
 	vertices[3].z = 0.0f;
 
 	vertices[4].colour = color;
-	vertices[4].x = 0;
-	vertices[4].y = 0;
+	vertices[4].x = pos_x;// 0;
+	vertices[4].y = pos_y;//0;
 	vertices[4].z = 0.0f;
 
 	vertices[5].colour = color;
-	vertices[5].x = (FLOAT)width;
-	vertices[5].y = 0;
+	vertices[5].x = (FLOAT)pos_width + pos_x * 2;
+	vertices[5].y = pos_y;// 0;
 	vertices[5].z = 0.0f;
 
-	vertices[0].u = 1.0f; vertices[0].v = 0.0f;
-	vertices[1].u = 1.0f; vertices[1].v = 1.0f;
-	vertices[2].u = 0.0f; vertices[2].v = 1.0f;
-	vertices[3].u = 0.0f; vertices[3].v = 1.0f;
-	vertices[4].u = 0.0f; vertices[4].v = 0.0f;
-	vertices[5].u = 1.0f; vertices[5].v = 0.0f;
+	vertices[0].u = 1; vertices[0].v = 0;
+	vertices[1].u = 1; vertices[1].v = 1;
+	vertices[2].u = 0; vertices[2].v = 1;
+	vertices[3].u = 0; vertices[3].v = 1;
+	vertices[4].u = 0; vertices[4].v = 0;
+	vertices[5].u = 1; vertices[5].v = 0;
 
 	m_pImmediateContext->Unmap(m_pVertexBuffer, NULL);
 
@@ -468,7 +485,6 @@ bool SpoutReceiverPlugin::UpdateVertices()
 	return true;
 }
 
-
 bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 {
 	// Set the initial width, height, format and share handle to globals.
@@ -477,8 +493,6 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 	unsigned int senderheight = m_SenderHeight;
 	DWORD senderFormat = m_dwFormat;
 	HANDLE dxShareHandle = m_dxShareHandle;
-
-	// printf("ReceiveSpoutTexture %dx%d\n", senderwidth, senderheight);
 
 	// Check to see if SpoutPanel has been opened
 	// If it has, the sender name will be different
@@ -501,7 +515,6 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 
 	// Find if the sender exists and return width, height, sharehandle and format.
 	if (spoutsender.FindSender(m_SenderName, senderwidth, senderheight, dxShareHandle, senderFormat)) {
-		// printf("FindSender %s, %dx%d - format %d\n", m_SenderName, senderwidth, senderheight, senderFormat);
 
 		// It's possible that the sharehandle could be null
 		// for a 2.006 sender using shared memory instead of a shared texture
@@ -509,23 +522,18 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 			return false;
 
 		// Don't receive from VDJ itself or master
-		// TODO : check
-		// if (strcmp(m_SenderName, m_noReceiveName) == 0 || strcmp(m_SenderName, "VDJSpoutSender64 master") == 0) {
 		if (strncmp(m_SenderName, "VDJSpoutSender64", 16) == 0) {
 			char* n = m_SenderName + 16;
 			if (*n == 0 ||
 				strcmp(m_SenderName, m_noReceiveName) == 0 ||
 				strcmp(m_SenderName, (std::string(m_noReceiveName) + "_Release").c_str()) == 0 ||
-				strncmp(n, " deck Master", 12) == 0
+				strncmp(n, " deck Master", 12) == 0 ||
+				strncmp(n, " master", 7) == 0
 				) {
-				// printf("ReceiveSpoutTexture invalid name [%s]\n", m_SenderName);
 				m_SenderName[0] = 0;
 				return false;
 			}
 		}
-			// m_SenderName[0] = 0;
-			// return false;
-		// }
 
 		// Check here for sender size or format changes to re-create the local texture
 		// or create one if it does not exist yet
@@ -534,9 +542,6 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 			|| m_dwFormat != senderFormat 
 			|| m_SenderWidth != senderwidth 
 			|| m_SenderHeight != senderheight) {
-			
-			// printf("Sender change from %dx%d, format %d, handle 0x%.7X, to %dx%d, format %d, handle 0x%.7X\n",
-				// m_SenderWidth, m_SenderHeight, m_dwFormat, PtrToUint(m_dxShareHandle), senderwidth, senderheight, senderFormat, PtrToUint(dxShareHandle) );
 
 			// Save the sender's width, height, format and share handle
 			m_SenderWidth = senderwidth;
@@ -553,10 +558,12 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 
 				SafeRelease(&m_pTexture);
 
-				// DX9
-				// DX9 formats compatible with the NVIDIA GL/DX interop
+				// Formats compatible with the NVIDIA GL/DX interop
+				//
+				// DX9 
 				// 21 - D3DFMT_A8R8G8B8
 				// 22 - D3DFMT_X8R8G8B8
+				//
 				// DX11
 				// 28 - DXGI_FORMAT_R8G8B8A8_UNORM
 				// 87 - DXGI_FORMAT_B8G8R8A8_UNORM
@@ -569,24 +576,15 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 				// DX9 formats are not supported for creation of a DX11 shader resource view
 				// so use the default DXGI_FORMAT_B8G8R8A8_UNORM.
 				// Otherwise DX11 formats will be detected correctly.
-				// TODO : test other than DX11 RGBA
-
 				if (m_dwFormat == (DWORD)D3DFMT_A8R8G8B8 || m_dwFormat == (DWORD)D3DFMT_X8R8G8B8)
 					CreateDX11Texture(m_pVDJdevice, m_SenderWidth, m_SenderHeight, DXGI_FORMAT_B8G8R8A8_UNORM, &m_pTexture);
 				else
 					CreateDX11Texture(m_pVDJdevice, m_SenderWidth, m_SenderHeight, (DXGI_FORMAT)m_dwFormat, &m_pTexture);
-
-				// printf("Created new texture - [0x%.7X]\n", PtrToUint(m_pTexture));
-			}
-			else {
-				// printf("No VDJ device\n");
-				return false;
 			}
 		}
 
 		// Set up the receiver if not initialized yet
 		if (!bSpoutInitialized) {
-			// printf("set up receiver %s, %dx%d\n", m_SenderName, m_SenderWidth, m_SenderHeight);
 			// The local texture will have been created on size change
 			// Create a named sender mutex for access to the shared texture
 			frame.CreateAccessMutex(m_SenderName);
@@ -599,7 +597,6 @@ bool SpoutReceiverPlugin::ReceiveSpoutTexture()
 		if (!m_pSharedTexture) {
 			// Open the shared texture
 			spoutdx.OpenDX11shareHandle(m_pVDJdevice, &m_pSharedTexture, m_dxShareHandle);
-			// printf("Created new shared texture - [0x%.7X]\n", PtrToUint(m_pSharedTexture));
 		}
 
 		// Access the sender shared texture
@@ -666,9 +663,6 @@ bool SpoutReceiverPlugin::CreateDX11Texture(ID3D11Device* pd3dDevice,
 
 	SpoutLogNotice("SpoutReceiverPlugin::CreateDX11Texture");
 	SpoutLogNotice("    pd3dDevice = 0x%.7X, width = %d, height = %d, format = %d", PtrToUint(pd3dDevice), width, height, format);
-
-	// printf("SpoutReceiverPlugin::CreateDX11Texture\n");
-	// printf("    pd3dDevice = 0x%Ix, width = %d, height = %d, format = %d\n", (intptr_t)pd3dDevice, width, height, format);
 
 	// Create a new DX11 texture
 	D3D11_TEXTURE2D_DESC desc;
@@ -841,6 +835,12 @@ bool SpoutReceiverPlugin::OpenSpoutPanel()
 	hMutex1 = OpenMutexA(MUTEX_ALL_ACCESS, 0, "SpoutPanel");
 	if (!hMutex1) {
 		// No mutex, so not running, so can open it
+
+		// First release any orphaned senders if the name exists
+		// in the sender list but the shared memory info does not
+		// So that the sender list is clean
+		spoutsender.CleanSenders();
+
 		// Use ShellExecuteEx so we can test its return value later
 		ZeroMemory(&m_ShExecInfo, sizeof(m_ShExecInfo));
 		m_ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
@@ -924,4 +924,51 @@ bool SpoutReceiverPlugin::OpenSpoutPanel()
 	return true;
 
 } // end OpenSpoutPanel
+
+
+//
+// For overlay effect 
+// (https://github.com/nicotux)
+//
+
+// construct the Full qualified deck name [[deck <deck>|Master|Mic|Sampler][_[Audio|Video]]|unknown]
+std::string SpoutReceiverPlugin::deck_name(int deck)
+{
+	double query = NAN;
+	return ((deck > 0) ? "deck " + std::to_string((int)deck)
+		: ((deck >= -3) ? std::array <std::string, 4> { "Master", "Sampler", "Mic", "Aux" }.at(-(int)deck)
+			: "")
+		)
+		+ (GetInfo("is_releasefx ? true : false", &query) != S_OK ? "" : (query ? "_Release" : ""))
+		+ (GetInfo("is_audioonlyvisualisation ? true : false", &query) != S_OK ? "" : (query ? "_Source" : ""))
+		+ (GetInfo("is_colorfx ? true : false", &query) != S_OK ? "" : (query ? "_Colorfx" : ""))
+		;
+}
+
+// Get the filename of the dll
+// Note: hInstance is not valid for the plugin in the constructor
+std::string SpoutReceiverPlugin::GetDLLName()
+{
+	char		path[MAX_PATH * sizeof(char)];
+	std::string dllName;
+	size_t		pos;
+
+	GetModuleFileNameA(hInstance, path, MAX_PATH * sizeof(char));
+	dllName = path;
+	pos = dllName.rfind('\\') + 1;
+	return dllName.substr(pos, dllName.rfind('.') - pos);
+
+}
+
+// Get the folder the dll stays in
+std::string SpoutReceiverPlugin::GetDLLDir()
+{
+	char path[MAX_PATH * sizeof(char)];
+	std::string dllDir;
+
+	// Get the DLL full path
+	GetModuleFileNameA(hInstance, path, MAX_PATH * sizeof(char));
+	dllDir = path;
+	return dllDir.substr(0, dllDir.rfind('\\'));
+}
 

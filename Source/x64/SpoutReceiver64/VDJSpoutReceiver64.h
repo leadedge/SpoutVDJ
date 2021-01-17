@@ -19,6 +19,7 @@
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
 #include <tchar.h> // for _tcsicmp
+#include <array> // for sender naming
 
 class COverlayD3D11 {
 public:
@@ -95,6 +96,13 @@ private:
 	bool bSpoutPanelOpened;
 	bool bSpoutPanelActive;
 	
+	// For overlay effect
+	float m_position[4] = { 0.0f,0.0f,1.0f,1.0f }; // Render size & position
+	char m_ReceiverName[256]; // The name of this effect as it will appear to VirtualDJ
+	std::string deck_name(int deck);
+	std::string GetDLLName();
+	std::string GetDLLDir();
+
 };
 
 #endif
