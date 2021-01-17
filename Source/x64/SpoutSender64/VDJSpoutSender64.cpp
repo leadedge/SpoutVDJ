@@ -38,6 +38,12 @@
 //		02.06.20 - Rebuild without console
 //		10.01.21 - Change sender name creation to match receiver code
 //				   Rebuild for GitHub update - Version 2.04
+//		13.01.21 - Change infos->PluginName from "VDJSpoutSender64" to "SpoutSender"
+//				   Change dll name to SpoutSender.dll
+//				   Keep generated sender name as VDJSpoutSender64 + deck etc
+//				   to be unique for multiple senders and for the VDJ receiver
+//		16.01.21 - Create log file to match sender name.
+//				   Version 2.05
 //
 //		------------------------------------------------------------
 //
@@ -76,14 +82,9 @@ VDJ_EXPORT HRESULT VDJ_API DllGetClassObject(const GUID &rclsid, const GUID &rii
 
 SpoutSenderPlugin::SpoutSenderPlugin()
 {
-	// Enable logging to show Spout warnings and errors
-	// Log file saved in AppData>Roaming>Spout
-	EnableSpoutLogFile("VDJSpoutSender64.log");
-	SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
 
 	// OpenSpoutConsole(); // For debugging
-	// printf("VDJSpoutSender64 - 2.04\n");
-
+	// printf("VDJSpoutSender64 - 2.05\n");
 
 	m_Width = 0;
 	m_Height = 0;
@@ -105,15 +106,23 @@ HRESULT VDJ_API SpoutSenderPlugin::OnLoad()
 	// The deck the plugin was loaded
 	// is it a standard one ? the master one ? yes master, no, standard, else it is special one or fail
 	deck = (!GetInfo("get_plugindeck", &query)) ? (int)query : MININT;
+
+	// Enable logging to show Spout warnings and errors
+	// Log file saved in AppData>Roaming>Spout
+	char logfile[256];
+	sprintf_s(logfile, 256, "VDJSpoutSender64 %s%s", (deck == 0) ? "" : "Deck ", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str());
+	EnableSpoutLogFile(logfile);
+	SetSpoutLogLevel(SPOUT_LOG_WARNING); // to show only warnings and errors
+
 	return NO_ERROR;
 }
 
 HRESULT VDJ_API SpoutSenderPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 {
 	infos->Author = "Lynn Jarvis";
-    infos->PluginName = (char *)"VDJSpoutSender64";
+	infos->PluginName = (char *)"SpoutSender";
     infos->Description = (char *)"Sends frames to a Spout Receiver\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.04";
+	infos->Version = (char *)"v2.05";
     infos->Bitmap = NULL;
 
 	// A sender is an effect - process last so all other effects are shown
@@ -194,15 +203,8 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 								m_Height = desc.Width;
 								// Create a local shared texture the same size and format as the texture
 								spoutdx.CreateSharedDX11Texture(pDevice, m_Width, m_Height, dxformat, &m_pSharedTexture, dxShareHandle);
-								
-								// sprintf_s(m_SenderName, 256, "VDJSpoutSender64 Deck %s", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
-
 								// Create a sender name depending on the deck it is loaded on
 								sprintf_s(m_SenderName, 256, "VDJSpoutSender64 %s%s", (deck == 0) ? "" : "Deck ", (deck <= 0 ? (deck >= -3 ? std::array <std::string, 4> { "master", "sampler", "mic", "aux" }.at(-(int)deck) : std::to_string((int)deck)) : std::to_string((int)deck)).c_str()); // add deck n
-								
-								// LJ DEBUG
-								printf("Sender [%s]\n", m_SenderName);
-
 								// Create a sender, specifying the texture format and share handle
 								bInitialized = spoutsender.CreateSender(m_SenderName, m_Width, m_Height, dxShareHandle, (DWORD)dxformat);
 								// Create a sender mutex for access to the shared texture
@@ -225,9 +227,7 @@ HRESULT VDJ_API SpoutSenderPlugin::OnDraw()
 								if (frame.CheckAccess()) {
 									// Copy the Virtual DJ texture to the sender's shared texture
 									pImmediateContext->CopyResource(m_pSharedTexture, pTexture);
-									// Flush and wait until CopyResource is done
-									// spoutdx.FlushWait(pDevice, pImmediateContext);
-									// LJ DEBUG
+									// Flush after CopyResource to the shared texture
 									pImmediateContext->Flush();
 									// While the mutex is still locked, signal a new frame
 									frame.SetNewFrame();
