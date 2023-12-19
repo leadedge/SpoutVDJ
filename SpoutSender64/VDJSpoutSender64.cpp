@@ -44,10 +44,13 @@
 //				   to be unique for multiple senders and for the VDJ receiver
 //		16.01.21 - Create log file to match sender name.
 //				   Version 2.05
+//		31.12.22 - Rebuild with latest VDJ header files VirtualDJ8_SDK_20211003
+//		19.12.23 - Rebuild with latest Spout files (SDKversion 2.007.013)
+//				   Version 2.06
 //
 //		------------------------------------------------------------
 //
-//		Copyright (C) 2015-2021. Lynn Jarvis, Leading Edge. Pty. Ltd.
+//		Copyright (C) 2015-2024. Lynn Jarvis, Leading Edge. Pty. Ltd.
 //
 //		This program is free software: you can redistribute it and/or modify
 //		it under the terms of the GNU Lesser General Public License as published by
@@ -67,16 +70,15 @@
 #include "VDJSpoutSender64.h"
 #include <array>
 
-
 VDJ_EXPORT HRESULT VDJ_API DllGetClassObject(const GUID &rclsid, const GUID &riid, void** ppObject)
 { 
-	// VDJ 8
-	if(memcmp(&rclsid, &CLSID_VdjPlugin8, sizeof(GUID)) != 0) return CLASS_E_CLASSNOTAVAILABLE; 
-    if(memcmp(&riid, &IID_IVdjPluginVideoFx8, sizeof(GUID)) != 0) return CLASS_E_CLASSNOTAVAILABLE; 
-
-	*ppObject = new SpoutSenderPlugin(); 
-
-    return NO_ERROR; 
+	if (memcmp(&rclsid, &CLSID_VdjPlugin8, sizeof(GUID)) == 0 && memcmp(&riid, &IID_IVdjPluginVideoFx8, sizeof(GUID)) == 0)	{
+		*ppObject=new SpoutSenderPlugin();
+	}
+	else {
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+	return NO_ERROR;
 }
 
 
@@ -84,7 +86,7 @@ SpoutSenderPlugin::SpoutSenderPlugin()
 {
 
 	// OpenSpoutConsole(); // For debugging
-	// printf("VDJSpoutSender64 - 2.05\n");
+	// printf("VDJSpoutSender64 - 2.06\n");
 
 	m_Width = 0;
 	m_Height = 0;
@@ -122,7 +124,7 @@ HRESULT VDJ_API SpoutSenderPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 	infos->Author = "Lynn Jarvis";
 	infos->PluginName = (char *)"SpoutSender";
     infos->Description = (char *)"Sends frames to a Spout Receiver\nSpout : http://Spout.zeal.co/";
-	infos->Version = (char *)"v2.05";
+	infos->Version = (char *)"v2.06";
     infos->Bitmap = NULL;
 
 	// A sender is an effect - process last so all other effects are shown

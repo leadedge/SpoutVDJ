@@ -2,7 +2,7 @@
 //
 // VirtualDJ
 // Plugin SDK
-// (c)Atomix Productions 2011-2019
+// (c)Atomix Productions 2011-2021
 //
 //////////////////////////////////////////////////////////////////////////
 //
@@ -36,7 +36,9 @@ enum EVdjVideoEngine
 	VdjVideoEngineDirectX9 = 1,
 	VdjVideoEngineOpenGL = 2,
 	VdjVideoEngineDirectX11 = 3,
-	VdjVideoEngineOpenGLES2 = 4
+	VdjVideoEngineOpenGLES2 = 4,
+    VdjVideoEngineMetal = 5,
+    VdjVideoEngineAnyPtr = 6,
 };
 
 #define VDJFLAG_VIDEO_MASTERONLY	0x10000
@@ -46,8 +48,7 @@ enum EVdjVideoEngine
 #define VDJFLAG_VIDEO_NOAUTOACTIVE  0x200000 // The video engine will not be automatically activated when activating this effect (for audio effects with a video option)
 #define VDJFLAG_VIDEO_OUTPUTRESOLUTION 0x400000 // If the effect is applied on deck, the effect will be applied onto the video output resolution instead of the video source resolution
 #define VDJFLAG_VIDEO_OUTPUTASPECTRATIO 0x800000  // If the effect is applied on deck, the effect will be applied in same aspect ratio as video output (and minimum resolution between video source and video output)
-// LJ DEBUG
-#define VDJFLAG_VIDEO_FORRECORDING 0x1000000
+#define VDJFLAG_VIDEO_FORRECORDING 0x1000000 // If the effect is applied on the master, it will be rendered in the record resolution, and after videoskin
 
 // For transitions, you need to define in OnGetPluginInfo the behavior of the auto-videocrossfader:
 #define VDJFLAG_VIDEOTRANSITION_CONTINOUS	0x100000 // the crossfader moves continuously from one side to the other
@@ -85,8 +86,13 @@ public:
 	HRESULT (*DrawDeck)(int deck, TVertex* vertices);
 
 	// for more complicated operations, you can ask direct access to the device and textures
-    // For OpenGL texture needs to point to a GLuint, for DirectX 9, it needs to point to a IDirect3DTexture9*
+	//For DirectX 9 (windows 32-bit) texture is IDirect3DTexture9*
+	//For DirectX 11 (windows 64-bit) texture is ID3D11ShaderResourceView*
 	HRESULT (*GetDevice)(EVdjVideoEngine engine, void **device);
+
+	//For OpenGL (macOS) texture is a regular opengl texture id, with type GLuint
+	//For DirectX 9 (windows 32-bit) device is IDirect3DDevice9*
+	//For DirectX 11 (windows 64-bit) device is ID3D11Device*
 	HRESULT (*GetTexture)(EVdjVideoEngine engine, int deck, void**texture);
 
 	// When DirectX/OpenGL is initialized or closed, these functions will be called
@@ -117,7 +123,13 @@ public:
 	HRESULT (*DrawDeck)(int deck, TVertex* vertices);
 	
 	// for more complicated operations, you can ask direct access to the device and textures
+	//For DirectX 9 (windows 32-bit) device is IDirect3DDevice9*
+	//For DirectX 11 (windows 64-bit) device is ID3D11Device*
 	HRESULT (*GetDevice)(EVdjVideoEngine engine, void **device);
+
+	//For OpenGL (macOS) texture is a regular opengl texture id, with type GLuint
+	//For DirectX 9 (windows 32-bit) device is IDirect3DDevice9*
+	//For DirectX 11 (windows 64-bit) device is ID3D11Device*
 	HRESULT (*GetTexture)(EVdjVideoEngine engine, int deck, void**texture);
 
 	// When DirectX/OpenGL is initialized or closed, these functions will be called
@@ -152,6 +164,7 @@ public:
 	
 	//For DirectX 9 (windows 32-bit) device is IDirect3DDevice9*
 	//For DirectX 11 (windows 64-bit) device is ID3D11Device*
+    //For Metal on mac device is id<MTLRenderCommandEncoder>
 	HRESULT GetDevice(EVdjVideoEngine engine, void **device) {return vcb->GetDevice(engine,device);}
 	
 	//For DirectX 9 (windows 32-bit) texture is IDirect3DTexture9*

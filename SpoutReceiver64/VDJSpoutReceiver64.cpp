@@ -121,10 +121,14 @@
 //				   Change build copy name to SpoutReceiver
 //		13.01.21 - Add " master" string check for sender names to avoid.
 //		17.01.21 - Build for release v2008 - Version 2.12
+//		19.12.23 - Use _access in place of shlwapi function PathFileExists
+//				   Change from local Spout SDK files to use withing SDK "myApps" folder
+//				   Rebuild with latest Spout files (SDKversion 2.007.013)
+//				   Version 2.13
 //
 //		------------------------------------------------------------
 //
-//		Copyright (C) 2015-2021. Lynn Jarvis, Leading Edge. Pty. Ltd.
+//		Copyright (C) 2015-2024. Lynn Jarvis, Leading Edge. Pty. Ltd.
 //
 //		This program is free software: you can redistribute it and/or modify
 //		it under the terms of the GNU Lesser General Public License as published by
@@ -194,7 +198,7 @@ VDJ_EXPORT HRESULT __stdcall DllGetClassObject(const GUID &rclsid, const GUID &r
 SpoutReceiverPlugin::SpoutReceiverPlugin()
 {
 	// OpenSpoutConsole(); // For debugging
-	// printf("SpoutReceiver - 2.12\n");
+	// printf("SpoutReceiver - 2.13\n");
 
 	m_pVDJdevice = nullptr;
 	m_pImmediateContext = nullptr;
@@ -275,7 +279,7 @@ HRESULT __stdcall SpoutReceiverPlugin::OnGetPluginInfo(TVdjPluginInfo8 *infos)
 	infos->PluginName = (char *)"SpoutReceiver";
 	infos->Flags = VDJFLAG_VIDEO_OVERLAY | VDJFLAG_VIDEO_OUTPUTRESOLUTION;
 	infos->Description = (char *)"Receives frames from a Spout Sender\nSpout : https://Spout.zeal.co/";
-	infos->Version = (char *)"v2.12";
+	infos->Version = (char *)"v2.13";
     infos->Bitmap = NULL;
     return NO_ERROR;
 }
@@ -817,12 +821,12 @@ bool SpoutReceiverPlugin::OpenSpoutPanel()
 		_splitpath_s(path, drive, MAX_PATH, dir, MAX_PATH, fname, MAX_PATH, NULL, 0);
 		_makepath_s(path, MAX_PATH, drive, dir, "SpoutPanel", ".exe");
 		// Does SpoutPanel.exe exist in this path ?
-		if (!PathFileExistsA(path)) {
+		if (_access(path, 0) != -1) {
 			// Try the current working directory
 			if (_getcwd(path, MAX_PATH)) {
 				strcat_s(path, MAX_PATH, "\\SpoutPanel.exe");
 				// Does SpoutPanel exist here?
-				if (!PathFileExistsA(path)) {
+				if (_access(path, 0) != -1) {
 					SpoutLogWarning("SpoutReceiverPlugin::OpenSpoutPanel - SpoutPanel path not found");
 					return false;
 				}
